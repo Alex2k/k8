@@ -1,0 +1,57 @@
+#!/usr/bin/env php
+<?php
+
+// Bootstrap
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/env.php';
+require dirname(__DIR__) . '/src/Lib/Db.php';
+
+$connection = init_db_connection(DB_CONFIG);
+
+// Action
+
+$connection->exec('TRUNCATE TABLE users;');
+$connection->exec('TRUNCATE TABLE emails;');
+
+$stepTotal = 10;
+$bulkTotal = 100000;
+
+for ($i = 0; $i < $stepTotal; $i++) {
+    $pdo = $connection->prepare('
+        INSERT INTO users (username, email, validts, confirmed)
+        VALUES (:username, :email, :validts, :confirmed);
+    ');
+
+    // Faster bulk insert
+    try {
+        $connection->beginTransaction();
+
+        for ($a = 0; $a < $bulkTotal; $a++) {
+            $index = ($i * $bulkTotal) + $a;
+
+            $daysOffset = random_int(-10, +10);
+            $daysOffset = $daysOffset > 0 ? '+' . $daysOffset : $daysOffset;
+
+            $randomDateTime = (new DateTime('now'))->modify($daysOffset . ' day');
+
+            $result = $pdo->execute([
+                'username' => 'User' . $index,
+                'email' => 'user' . $index . '@email.loc',
+                'validts' => $randomDateTime->format('Y-m-d h:i:s'),
+                'confirmed' => random_int(0, 1),
+            ]);
+        }
+        $connection->commit();
+
+        echo ($i + 1) . ' of ' . $stepTotal . ' is done.' . PHP_EOL;
+    } catch (\Exception $e) {
+        $connection->rollback();
+        throw $e;
+    }
+
+    if (! $result) {
+        dump($connection->errorInfo());
+        exit;
+    }
+}

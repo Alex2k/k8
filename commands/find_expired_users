@@ -1,0 +1,58 @@
+#!/usr/bin/env php
+<?php
+
+use App\Enum\UserNotificationEnum;
+
+// Bootstrap
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/env.php';
+require dirname(__DIR__) . '/src/Lib/Db.php';
+
+$connection = init_db_connection(DB_CONFIG);
+
+// Action
+
+$userNotificationInsertPdo = $connection->prepare('
+    INSERT INTO user_notifications (user_id, progress_status, validts)
+    VALUES (:user_id, :progress_status, :validts);
+');
+
+try {
+    $connection->beginTransaction();
+
+    $usersQueryPdo = $connection->query('
+        SELECT *
+        FROM users AS u
+        WHERE NOT EXISTS (
+            SELECT null 
+            FROM user_notifications AS un
+            WHERE un.user_id = u.id
+            AND un.validts = u.validts
+        )
+        AND validts >= NOW() AND validts < NOW() + INTERVAL 3 DAY
+        AND confirmed = 1
+        LIMIT 100
+        FOR UPDATE
+    ');
+
+    // Add userId into email queue
+    foreach ($usersQueryPdo->fetchAll() as $userData) {
+        $result = $userNotificationInsertPdo->execute([
+            'user_id' => $userData['id'],
+            'progress_status' => UserNotificationEnum::PROGRESS_STATUS_NEW,
+            'validts' => $userData['validts'],
+        ]);
+
+        if (! $result) {
+            dump($connection->errorInfo());
+            throw new Exception('Insert fail!');
+        }
+    }
+
+    $connection->commit();
+} catch (Throwable $throwable) {
+    $connection->rollBack();
+
+    throw $throwable;
+}

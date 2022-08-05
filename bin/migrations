@@ -1,0 +1,39 @@
+#!/usr/bin/env php
+<?php
+
+// Bootstrap
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/env.php';
+require dirname(__DIR__) . '/src/Lib/Db.php';
+
+$connection = init_db_connection(DB_CONFIG);
+
+// Action
+
+$queries = [];
+$queries[] = '
+    CREATE TABLE emails (id INT AUTO_INCREMENT NOT NULL, email VARCHAR(255) DEFAULT NULL, checked SMALLINT NOT NULL, valid SMALLINT NOT NULL, PRIMARY KEY(id)) 
+    DEFAULT CHARACTER SET utf8 
+    COLLATE `utf8_unicode_ci` 
+    ENGINE = InnoDB;
+';
+$queries[] = '
+    CREATE TABLE users (id INT AUTO_INCREMENT NOT NULL, username VARCHAR(255) DEFAULT \'\' NOT NULL, email VARCHAR(255) DEFAULT NULL, validts DATETIME NOT NULL, confirmed SMALLINT NOT NULL, PRIMARY KEY(id)) 
+    DEFAULT CHARACTER SET utf8 
+    COLLATE `utf8_unicode_ci` 
+    ENGINE = InnoDB;
+';
+$queries[] = '
+    CREATE TABLE user_notifications (id INT AUTO_INCREMENT NOT NULL, user_id INT NOT NULL, progress_status VARCHAR(255) DEFAULT NULL, validts DATETIME NOT NULL, PRIMARY KEY(id)) 
+    DEFAULT CHARACTER SET utf8 
+    COLLATE `utf8_unicode_ci` 
+    ENGINE = InnoDB;
+';
+
+foreach ($queries as $query) {
+    if ($connection->exec($query) === false) {
+        dump($connection->errorInfo());
+        exit;
+    }
+}

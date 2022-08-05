@@ -1,0 +1,52 @@
+#!/usr/bin/env php
+<?php
+
+use App\Enum\UserNotificationEnum;
+
+// Bootstrap
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/env.php';
+require dirname(__DIR__) . '/src/Lib/Db.php';
+
+$connection = init_db_connection(DB_CONFIG);
+
+// Action
+
+try {
+    $connection->beginTransaction();
+
+    $pdo = $connection->query('
+        SELECT *
+        FROM user_notifications AS un
+        WHERE un.progress_status = \'' . UserNotificationEnum::PROGRESS_STATUS_NEW . '\'
+        LIMIT 4
+        FOR UPDATE;
+    ');
+
+    if ($pdo === false) {
+        dump($connection->errorInfo());
+        throw new Exception('Select "user_notifications" fail!');
+    }
+
+    foreach ($pdo->fetchAll() as $userNotificationData) {
+//        send_email('', '', '', '', '');
+
+        $userNotificationUpdatePdo = $connection->prepare('
+            UPDATE user_notifications
+            SET progress_status = :progress_status
+            WHERE id = :id
+        ');
+
+        $userNotificationUpdatePdo->execute([
+            'id' => $userNotificationData['id'],
+            'progress_status' => UserNotificationEnum::PROGRESS_STATUS_DONE,
+        ]);
+    }
+
+    $connection->commit();
+} catch (Throwable $throwable) {
+    $connection->rollBack();
+
+    throw $throwable;
+}
